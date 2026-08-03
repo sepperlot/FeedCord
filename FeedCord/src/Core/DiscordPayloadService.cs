@@ -44,9 +44,10 @@ namespace FeedCord.Core
                         },
                         footer = new
                         {
-                            text = $"{post.Tag} - {post.PublishDate:MM/dd/yyyy h:mm tt}",
+                            text = post.Tag,
                             icon_url = _config.FooterImage ?? ""
                         },
+                        timestamp = post.PublishDate.ToUniversalTime().ToString("o"),
                         color = _config.Color,
                     }
                 }
@@ -90,9 +91,10 @@ namespace FeedCord.Core
                         },
                         footer = new
                         {
-                            text = $"{post.Tag} - {post.PublishDate:MM/dd/yyyy h:mm tt}",
+                            text = post.Tag,
                             icon_url = _config.FooterImage ?? ""
                         },
+                        timestamp = post.PublishDate.ToUniversalTime().ToString("o"),
                         color = _config.Color,
                     }
                 },
