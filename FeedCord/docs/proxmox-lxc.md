@@ -1,6 +1,6 @@
 # Running FeedCord in a Proxmox LXC Container
 
-FeedCord runs great inside a lightweight Proxmox LXC container. Since FeedCord ships as a Docker image, all you need is an LXC with Docker installed - everything else (`compose.yml`, `appsettings.json`) works exactly as it does on any other Linux host. This guide walks through creating that LXC from scratch.
+FeedCord runs great inside a lightweight Proxmox LXC container. Since FeedCord ships as a Docker image, all you need is an LXC with Docker (or Podman) installed - everything else (`compose.yml`, `appsettings.json`) works exactly as it does on any other Linux host. This guide walks through creating that LXC from scratch.
 
 ## 1. Create the LXC
 
@@ -21,9 +21,7 @@ pct create 200 local:vztmpl/debian-13-standard_13.6-1_amd64.tar.zst \
   --onboot 1
 ```
 
-Or create the container through the Proxmox web UI, making sure to enable "Nesting" in the "Features" section.
-
-Adjust the CTID, storage pool, and network bridge to match your environment. FeedCord is very lightweight — 512MB RAM and 4GB disk is comfortable headroom for the container plus the Docker runtime.
+Adjust the CTID, storage pool, and network bridge to match your environment. FeedCord is very lightweight - 512MB RAM and 4GB disk is comfortable headroom for the container plus the Docker runtime.
 
 Start and enter the container:
 
@@ -51,8 +49,9 @@ Follow the main [Quick Setup](../../README.md#quick-setup) guide to create your 
 ```bash
 mkdir -p /opt/feedcord
 cd /opt/feedcord
-nano appsettings.json   # paste your config
-nano compose.yml
+vi appsettings.json   # paste your config
+touch feed_dump.csv     # see note below
+vi compose.yml
 ```
 
 ```yaml
@@ -63,7 +62,16 @@ services:
     restart: unless-stopped
     volumes:
       - /opt/feedcord/appsettings.json:/app/config/appsettings.json
+      - /opt/feedcord/feed_dump.csv:/app/feed_dump.csv
 ```
+
+> [!TIP]
+> If `feed_dump.csv` doesn't already exist on the host when you bind-mount it, Docker creates a *directory* at that path instead of a file — which breaks the app. Pre-creating an empty file with `touch` avoids that.
+<!-- fix MD028 -->
+> [!NOTE]
+> `feed_dump.csv` tracks the last-seen post per feed (with `PersistenceOnShutdown: true` in your config), so FeedCord knows where it left off across restarts instead of treating every post as new on first boot. Without this volume mount, the file lives only in the container's writable layer and gets wiped by `docker compose up -d --force-recreate`, image updates, or a host reboot — silently resetting every feed's watermark and potentially causing missed posts (published while the container was down) to never get sent to Discord.
+>
+> This fork publishes its own image to Docker Hub at [`sepperlot/feedcord`](https://hub.docker.com/r/sepperlot/feedcord). If you're running upstream FeedCord instead, use `qolors/feedcord:latest`.
 
 ```bash
 docker compose up -d
@@ -78,10 +86,10 @@ If you'd rather manage the container as a non-root user inside the LXC:
 usermod -aG docker <username>
 ```
 
-Log out and back in (or run `newgrp docker`) for the group membership to take effect. Note that membership in the `docker` group is effectively root-equivalent within that container, since the Docker daemon runs as root — fine for a single-purpose LXC like this one, but worth knowing if you share the container with other users.
+Log out and back in (or run `newgrp docker`) for the group membership to take effect. Note that membership in the `docker` group is effectively root-equivalent within that container, since the Docker daemon runs as root - fine for a single-purpose LXC like this one, but worth knowing if you share the container with other users.
 
 ## Notes
 
-- No LXC- or Proxmox-specific configuration is required beyond enabling `nesting=1` at container creation — Docker inside the LXC behaves identically to Docker on any bare-metal or VM host.
+- No LXC- or Proxmox-specific configuration is required beyond enabling `nesting=1` at container creation - Docker inside the LXC behaves identically to Docker on any bare-metal or VM host.
 - Take a Proxmox snapshot of the container once it's running cleanly; it's a trivial rollback point if a future config or image change breaks something.
 - Editing/adding feeds later only requires updating `appsettings.json` and restarting the container (`docker compose up -d --force-recreate` if you've rebuilt a custom image, or a plain `docker compose restart` if only the mounted config changed).
