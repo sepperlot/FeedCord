@@ -122,7 +122,7 @@ docker run --name FeedCord -v "/path/to/your/appsettings.json:/app/config/appset
 
 #### Proxmox LXC
 
-Wan to run this in a Proxmox LXC container? See the [Proxmox LXC setup guide](FeedCord/docs/proxmox-lxc.md) for step-by-step instructions, including the nesting feature required for Docker to run inside an unprivileged container.
+Want to run this in a Proxmox LXC container? See the [Proxmox LXC setup guide](FeedCord/docs/proxmox-lxc.md) for step-by-step instructions, including the nesting feature required for Docker to run inside an unprivileged container.
 
 ### Build From Source
 
