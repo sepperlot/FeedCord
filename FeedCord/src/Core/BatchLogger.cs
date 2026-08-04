@@ -34,7 +34,7 @@ public class BatchLogger : IBatchLogger
     {
         var batchSummary = new StringBuilder();
         batchSummary.AppendLine($"> Batch Run for {logItem.InstanceId} finished:");
-        batchSummary.AppendLine($"> Started At: {logItem.StartTime} | Finished At: {logItem.EndTime}");
+        batchSummary.AppendLine($"> Started At: {logItem.StartTime:yyyy-MM-dd HH:mm:ss} | Finished At: {logItem.EndTime:yyyy-MM-dd HH:mm:ss}");
     
         if (!logItem.UrlStatuses.IsEmpty)
         {
@@ -58,7 +58,7 @@ public class BatchLogger : IBatchLogger
             batchSummary.AppendLine("> No new posts found. Posts extracted from feeds:");
             foreach (var (url, post) in logItem.LatestPosts)
             {
-                batchSummary.AppendLine($"> Url: {url} | Title: {post?.Title} | Publish Date: {post?.PublishDate}");
+                batchSummary.AppendLine($"> Url: {url} | Title: {post?.Title} | Publish Date: {post?.PublishDate:yyyy-MM-dd HH:mm:ss}");
             }
         }
         else
