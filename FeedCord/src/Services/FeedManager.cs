@@ -275,15 +275,10 @@ namespace FeedCord.Services
         {
             try
             {
-                Post? post;
-
                 //TODO --> BETTER HANDLING - TEMP FIX FOR INSERTING XML LINKS IN TO YOUTUBE - WE SKIP PARSING HTML
                 if (url.Contains("xml"))
                 {
-
-                    post = await _rssParsingService.ParseYoutubeFeedAsync(url);
-
-                    return post == null ? new List<Post?>() : new List<Post?> { post };
+                    return await _rssParsingService.ParseYoutubeFeedAsync(url);
                 }
 
                 var response = await _httpClient.GetAsyncWithFallback(url);
@@ -297,9 +292,7 @@ namespace FeedCord.Services
 
                 var xmlContent = await GetResponseContentAsync(response);
 
-                post = await _rssParsingService.ParseYoutubeFeedAsync(xmlContent);
-
-                return post == null ? new List<Post?>() : new List<Post?> { post };
+                return await _rssParsingService.ParseYoutubeFeedAsync(xmlContent);
 
             }
             catch (HttpRequestException ex)
