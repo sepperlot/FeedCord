@@ -71,18 +71,16 @@ namespace FeedCord.Infrastructure.Http
 
         public async Task PostAsyncWithFallback(string url, StringContent forumChannelContent, StringContent textChannelContent, bool isForum)
         {
+            // Single throttle permit held for the whole method, released exactly once
+            // in the finally block - do not release inline mid-method as well.
             try
             {
                 await _throttle.WaitAsync();
 
                 var response = await _innerClient.PostAsync(url, isForum ? forumChannelContent : textChannelContent);
-                
-                _throttle.Release();
 
                 if (response.StatusCode != HttpStatusCode.NoContent)
                 {
-                    await _throttle.WaitAsync();
-
                     _logger.LogError("Response Error: {ResponseError}", response.Content.ReadAsStringAsync().Result);
 
                     response = await _innerClient.PostAsync(url, !isForum ? forumChannelContent : textChannelContent);
@@ -109,32 +107,33 @@ namespace FeedCord.Infrastructure.Http
             var uri = new Uri(url);
             var baseUrl = uri.GetLeftPart(UriPartial.Authority);
 
+            // NOTE: The caller (GetAsyncWithFallback) already holds a single throttle
+            // permit for the entire duration of this fallback sequence. Do not acquire
+            // additional permits here - doing so per-attempt without a matching release
+            // on the failure path leaks permits and will eventually deadlock the whole
+            // throttle pool once enough fallback sequences fail end-to-end.
+
             //USER MIMICK
             var request = new HttpRequestMessage(HttpMethod.Get, url);
             request.Headers.UserAgent.ParseAdd(USER_MIMICK);
 
             try
             {
-                await _throttle.WaitAsync();
-
                 var response = await _innerClient.SendAsync(request);
                 if (response.IsSuccessStatusCode)
                 {
                     _userAgentCache.AddOrUpdate(url, USER_MIMICK, (_, _) => USER_MIMICK);
-                    _throttle.Release();
                     return response;
                 }
 
                 //GOOGLE FEED FETCHER
                 request = new HttpRequestMessage(HttpMethod.Get, url);
                 request.Headers.UserAgent.ParseAdd(GOOGLE_FEED_FETCHER);
-                await _throttle.WaitAsync();
                 response = await _innerClient.SendAsync(request);
 
                 if (response.IsSuccessStatusCode)
                 {
                     _userAgentCache.AddOrUpdate(url, GOOGLE_FEED_FETCHER, (_, _) => GOOGLE_FEED_FETCHER);
-                    _throttle.Release();
                     return response;
                 }
 
@@ -149,12 +148,10 @@ namespace FeedCord.Infrastructure.Http
                         request = new HttpRequestMessage(HttpMethod.Get, url);
                         request.Headers.UserAgent.ParseAdd(userAgent);
                         request.Headers.Add("Accept", "*/*");
-                        await _throttle.WaitAsync();
                         response = await _innerClient.SendAsync(request);
                         if (response.IsSuccessStatusCode)
                         {
                             _userAgentCache.AddOrUpdate(url, userAgent, (_, _) => userAgent);
-                            _throttle.Release();
                             return response;
                         }
                     }
@@ -164,27 +161,21 @@ namespace FeedCord.Infrastructure.Http
             {
                 _logger.LogError("Failed to fetch RSS Feed after fallback attempts: {Url} - {E}", url, e);
             }
-            finally
-            {
-                _throttle.Release();
-            }
             return oldResponse;
         }
 
         private async Task<string> FetchRobotsContentAsync(string url)
         {
+            // Called only from within TryAlternativeAsync, which already holds the
+            // single throttle permit for the fallback sequence - no additional
+            // acquisition needed here.
             try
             {
-                await _throttle.WaitAsync();
                 return await _innerClient.GetStringAsync(url);
             }
             catch
             {
                 return string.Empty;
-            }
-            finally
-            {
-                _throttle.Release();
             }
         }
 
