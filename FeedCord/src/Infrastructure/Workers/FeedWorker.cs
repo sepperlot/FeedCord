@@ -2,6 +2,7 @@
 using FeedCord.Core.Interfaces;
 using FeedCord.Helpers;
 using FeedCord.Services.Interfaces;
+using Cronos;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
@@ -17,7 +18,7 @@ namespace FeedCord.Infrastructure.Workers
 
         private readonly bool _persistent;
         private readonly string _id;
-        private readonly int _delayTime;
+        private readonly CronExpression _cronSchedule;
         private bool _isInitialized;
         
 
@@ -33,14 +34,14 @@ namespace FeedCord.Infrastructure.Workers
             _logger = logger;
             _feedManager = feedManager;
             _notifier = notifier;
-            _delayTime = config.RssCheckIntervalMinutes;
+            _cronSchedule = CronExpression.Parse(config.CronSchedule);
             _id = config.Id;
             _isInitialized = false;
             _persistent = config.PersistenceOnShutdown;
             _logAggregator = logAggregator;
 
-            logger.LogInformation("{id} Created with check interval {Interval} minutes",
-                _id, config.RssCheckIntervalMinutes);
+            logger.LogInformation("{id} Created with schedule \"{Cron}\"",
+                _id, config.CronSchedule);
         }
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -75,7 +76,24 @@ namespace FeedCord.Infrastructure.Workers
 
                 await _logAggregator.SendToBatchAsync();
 
-                await Task.Delay(TimeSpan.FromMinutes(_delayTime), stoppingToken);
+                var nextOccurrence = _cronSchedule.GetNextOccurrence(DateTime.UtcNow, TimeZoneInfo.Local);
+
+                if (nextOccurrence is null)
+                {
+                    _logger.LogCritical(
+                        "{id}: CronSchedule '{Cron}' has no future occurrence - stopping worker.",
+                        _id, _cronSchedule);
+                    return;
+                }
+
+                var delay = nextOccurrence.Value - DateTime.UtcNow;
+
+                if (delay < TimeSpan.Zero)
+                {
+                    delay = TimeSpan.Zero;
+                }
+
+                await Task.Delay(delay, stoppingToken);
             }
         }
 

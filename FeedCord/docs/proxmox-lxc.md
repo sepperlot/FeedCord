@@ -66,10 +66,10 @@ services:
 ```
 
 > [!TIP]
-> If `feed_dump.csv` doesn't already exist on the host when you bind-mount it, Docker creates a *directory* at that path instead of a file — which breaks the app. Pre-creating an empty file with `touch` avoids that.
+> If `feed_dump.csv` doesn't already exist on the host when you bind-mount it, Docker creates a *directory* at that path instead of a file - which breaks the app. Pre-creating an empty file with `touch` avoids that.
 <!-- fix MD028 -->
 > [!NOTE]
-> `feed_dump.csv` tracks the last-seen post per feed (with `PersistenceOnShutdown: true` in your config), so FeedCord knows where it left off across restarts instead of treating every post as new on first boot. Without this volume mount, the file lives only in the container's writable layer and gets wiped by `docker compose up -d --force-recreate`, image updates, or a host reboot — silently resetting every feed's watermark and potentially causing missed posts (published while the container was down) to never get sent to Discord.
+> `feed_dump.csv` tracks the last-seen post per feed (with `PersistenceOnShutdown: true` in your config), so FeedCord knows where it left off across restarts instead of treating every post as new on first boot. Without this volume mount, the file lives only in the container's writable layer and gets wiped by `docker compose up -d --force-recreate`, image updates, or a host reboot - silently resetting every feed's watermark and potentially causing missed posts (published while the container was down) to never get sent to Discord.
 >
 > This fork publishes its own image to Docker Hub at [`sepperlot/feedcord`](https://hub.docker.com/r/sepperlot/feedcord). If you're running upstream FeedCord instead, use `qolors/feedcord:latest`.
 
@@ -77,6 +77,23 @@ services:
 docker compose up -d
 docker logs -f FeedCord
 ```
+
+### Manually editing feed_dump.csv
+
+> [!WARNING]
+> Only edit `feed_dump.csv` while the container is **fully stopped** - never while it's running, and never as part of a `restart`. Edit it, *then* start.
+
+Here's why: on shutdown, FeedCord writes its current *in-memory* watermark back to this file - it has no idea what you changed on disk while it was running. A `restart` sends a stop signal first, which triggers that same shutdown save using the *old, stale* in-memory state, silently overwriting whatever you just edited before the new process ever gets a chance to read it. The correct sequence is:
+
+```bash
+docker compose stop        # fully stop first - confirm it's actually stopped
+vi feed_dump.csv          # now safe to edit - nothing running to clobber it
+docker compose start        # fresh process reads your edit on its own startup
+```
+
+(substitute `systemctl --user stop/start feedcord` for a Podman/Quadlet setup)
+
+Also worth knowing: FeedCord runs in UTC inside the container regardless of your host's local timezone (confirm with `docker exec -it FeedCord date`), so timestamps you write into this file need to be in UTC, not your local time.
 
 ## 4. (Optional) Run Docker without sudo
 

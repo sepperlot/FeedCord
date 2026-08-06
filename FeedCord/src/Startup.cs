@@ -137,7 +137,16 @@ namespace FeedCord
             var context = new ValidationContext(config, serviceProvider: null, items: null);
             var results = new List<ValidationResult>();
 
-            if (Validator.TryValidateObject(config, context, results, validateAllProperties: true)) 
+            var isValid = Validator.TryValidateObject(config, context, results, validateAllProperties: true);
+
+            if (!string.IsNullOrEmpty(config.CronSchedule) && !Cronos.CronExpression.TryParse(config.CronSchedule, out _))
+            {
+                isValid = false;
+                results.Add(new ValidationResult(
+                    $"CronSchedule \"{config.CronSchedule}\" is not a valid cron expression. Example: \"*/15 * * * *\" for every 15 minutes."));
+            }
+
+            if (isValid) 
                 return;
             
             var errors = string.Join("\n", results.Select(r => r.ErrorMessage));
@@ -145,5 +154,3 @@ namespace FeedCord
         }
     }
 }
-
-

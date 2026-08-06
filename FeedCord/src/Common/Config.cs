@@ -16,8 +16,8 @@ namespace FeedCord.Common
         [Required(ErrorMessage = "DiscordWebhookUrl Property is required.")]
         public required string DiscordWebhookUrl { get; set; }
 
-        [Required(ErrorMessage = "RssCheckIntervalMinutes Property is required.")]
-        public int RssCheckIntervalMinutes { get; set; }
+        [Required(ErrorMessage = "CronSchedule Property is required, e.g. \"*/15 * * * *\" for every 15 minutes, or \"1-56/5 * * * *\" for every 5 minutes offset to start at :01 instead of :00.")]
+        public required string CronSchedule { get; set; }
         public string? Username { get; set; }
         public string? AvatarUrl { get; set; }
         public string? AuthorIcon { get; set; }

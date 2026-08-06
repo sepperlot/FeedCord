@@ -44,7 +44,7 @@ Provided below is a quick guide to get up and running.
       ],
       "Forum": false,
       "DiscordWebhookUrl": "...",
-      "RssCheckIntervalMinutes": 25,
+      "CronSchedule": "*/15 * * * *",
       "EnableAutoRemove": false,
       "Color": 8411391,
       "DescriptionLimit": 250,
