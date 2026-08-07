@@ -132,6 +132,15 @@ namespace FeedCord.Infrastructure.Workers
         // reading/writing feed_dump.csv at the same moment during shutdown.
         private static readonly SemaphoreSlim CsvWriteLock = new(1, 1);
 
+        // Since PersistState runs after every successful cycle, a URL still in
+        // any Instance's config gets its row refreshed every check - its
+        // LastRunDate is effectively always fresh. A URL removed from config
+        // simply stops being refreshed and its timestamp freezes in place. That
+        // makes age a reliable, ownership-free signal for "no longer
+        // configured anywhere" without needing to track which Instance a row
+        // belongs to. Entries untouched for longer than this are pruned.
+        private static readonly TimeSpan StaleEntryThreshold = TimeSpan.FromDays(30);
+
         private void SaveDataToCsv(IReadOnlyDictionary<string, FeedState> data)
         {
             var filePath = Path.Combine(AppContext.BaseDirectory, "feed_dump.csv");
@@ -151,6 +160,24 @@ namespace FeedCord.Infrastructure.Workers
                         IsYoutube = value.IsYoutube,
                         LastRunDate = DateTime.Now
                     };
+                }
+
+                var cutoff = DateTime.Now - StaleEntryThreshold;
+                var staleKeys = existing
+                    .Where(kv => kv.Value.LastRunDate < cutoff)
+                    .Select(kv => kv.Key)
+                    .ToList();
+
+                foreach (var staleKey in staleKeys)
+                {
+                    existing.Remove(staleKey);
+                }
+
+                if (staleKeys.Count > 0)
+                {
+                    _logger.LogInformation(
+                        "{id}: Removed {Count} stale feed_dump.csv entries not refreshed in over {Days} days: {Urls}",
+                        _id, staleKeys.Count, StaleEntryThreshold.TotalDays, string.Join(", ", staleKeys));
                 }
 
                 using var writer = new StreamWriter(filePath, append: false);
